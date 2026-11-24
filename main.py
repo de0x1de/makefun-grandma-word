@@ -29,6 +29,11 @@ def build_word() -> str:
         raise ValueError("entry must be exactly one word, no whitespace")
     if any(ch.isspace() for ch in word):
         raise ValueError("word must not contain whitespace")
+    # Reject whitespace that isspace() alone might let a reader overlook:
+    # embedded or surrounding newlines, tabs and carriage returns would
+    # turn the file into more than a bare one-word entry.
+    if word != word.strip() or any(ch in word for ch in "\n\r\t"):
+        raise ValueError("word must not contain or be padded by whitespace")
     if not word.isalpha():
         raise ValueError("word must be letters only, no punctuation tricks")
     # UTF-8 round-trip: the gate reads the file as UTF-8 text.
@@ -40,6 +45,10 @@ def build_word() -> str:
 def main() -> None:
     word = build_word()
     payload = word.encode("utf-8")
+    # The file must be exactly the word's bytes: no trailing newline and
+    # no extra padding, so its length has to match the encoded word.
+    if payload.endswith(b"\n") or len(payload) != len(word.encode("utf-8")):
+        raise ValueError("payload must be the bare word with no trailing newline")
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_bytes(payload)
     written = OUTPUT_PATH.read_bytes()
